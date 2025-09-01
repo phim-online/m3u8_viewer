@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="vi">  
+<head>  
+  <meta charset="utf-8" />  
+  <meta name="viewport" content="width=device-width,initial-scale=1" />  
+  <title>M3U8 Metadata Viewer</title>  
+  <style>  
+    body { font-family: monospace; background: #0f1724; color: #f1f5f9; padding: 20px; }  
+    .card { background: #111827; padding: 16px; border-radius: 10px; margin-bottom: 12px; }  
+    input, button { padding: 8px; border-radius: 6px; border: none; }  
+    input { width: 100%; margin-bottom: 10px; background: #1e293b; color: white; }  
+    button { background: #3b82f6; color: white; cursor: pointer; }  
+    pre { background: #1e293b; padding: 10px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }  
+    .discontinuity { color: #f87171; font-weight: bold; } /* đỏ cho #EXT-X-DISCONTINUITY */  
+  </style>  
+</head>  
+<body>  
+  <div class="card">  
+    <h2>M3U8 Metadata Viewer</h2>  
+    <input id="m3u8" type="text" placeholder="Nhập URL playlist .m3u8" />  
+    <button id="inspectBtn">Inspect</button>  
+    <p id="status"></p>  
+  </div>  
+
+  <div class="card" id="metadata" style="display:none">  
+    <h3>Metadata</h3>  
+    <pre id="metaContent"></pre>  
+  </div>  
+
+  <script>  
+    const $ = id => document.getElementById(id);  
+  
+    function absoluteUrl(base, url) {  
+      try { return new URL(url, base).toString() } catch(e){ return url }  
+    }  
+  
+    async function fetchText(url) {  
+      const r = await fetch(url);  
+      if (!r.ok) throw new Error("HTTP " + r.status + " " + url);  
+      return await r.text();  
+    }  
+  
+    async function loadPlaylist(url) {  
+      const text = await fetchText(url);  
+      let output = `### PLAYLIST: ${url} ###\n`;  
+      const lines = text.split(/\r?\n/);  
+  
+      for (let l of lines) {  
+        l = l.trim();  
+        if (!l) continue;  
+        if (l.startsWith("#")) {  
+          output += l + "\n";  
+        } else {  
+          const abs = absoluteUrl(url, l);  
+          if (abs.endsWith(".m3u8")) {  
+            output += `### SUB-PLAYLIST: ${abs} ###\n`;  
+            output += await loadPlaylist(abs);  
+          } else {  
+            output += abs + "\n";  
+          }  
+        }  
+      }  
+      return output + "\n";  
+    }  
+  
+    async function inspect() {  
+      const rawUrl = $('m3u8').value.trim();  
+      if (!rawUrl) {  
+        alert("Vui lòng nhập URL m3u8.");  
+        return;  
+      }  
+      $('status').textContent = "Đang tải...";  
+      try {  
+        const meta = await loadPlaylist(rawUrl);  
+        // highlight DISCONTINUITY  
+        const highlighted = meta.replace(/(#EXT-X-DISCONTINUITY)/g, '<span class="discontinuity">$1</span>');  
+        $('metaContent').innerHTML = highlighted;  
+        $('metadata').style.display = "block";  
+        $('status').textContent = "Hoàn tất.";  
+      } catch(e) {  
+        $('status').textContent = "Lỗi: " + e.message;  
+        alert("Lỗi khi lấy dữ liệu:\n" + e.message);  
+      }  
+    }  
+  
+    $('inspectBtn').addEventListener('click', inspect);  
+  </script>  
+</body>  
+</html>
